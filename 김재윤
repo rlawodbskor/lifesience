@@ -1,0 +1,166 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from matplotlib.animation import FuncAnimation
+from matplotlib.widgets import Button
+import matplotlib
+matplotlib.rc('font', family='Malgun Gothic')
+matplotlib.rcParams['axes.unicode_minus'] = False
+
+# 시뮬레이션 시간 설정 (0분~60분)
+time = np.linspace(0, 60, 600)
+
+def simulate_temperature(t):
+    return 37 + 0.5 * np.exp(-0.1 * t) * np.sin(0.3 * t)
+
+def simulate_heart_rate(t):
+    return 300 + 40 * np.exp(-0.05 * t) * np.sin(0.4 * t)
+
+def simulate_drug_concentration(t):
+    return 100 * np.exp(-0.07 * t)
+
+fig, axs = plt.subplots(3, 1, figsize=(12, 8))
+
+# y축 범위 미리 지정
+axs[0].set_ylim(36, 38)
+axs[1].set_ylim(250, 350)
+axs[2].set_ylim(0, 110)
+
+# 그래프 초기화
+temp_line, = axs[0].plot([], [], color='red')
+hr_line, = axs[1].plot([], [], color='green')
+drug_line, = axs[2].plot([], [], color='blue')
+
+for ax, title, ylabel in zip(
+    axs,
+    ['Virtual Mouse Simulation: Body Temperature', 'Heart Rate', 'Drug Concentration'],
+    ['Temperature (°C)', 'BPM', 'Concentration (arbitrary units)']
+):
+    ax.set_xlim(0, 60)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.grid(True)
+axs[2].set_xlabel('Time (minutes)')
+
+# 약물 효과 상태
+drug_effect = {'capsaicin': False, 'stimulant': False, 'sedative': False, 'sleep': False}
+effect_time = {'capsaicin': 0, 'stimulant': 0, 'sedative': 0, 'sleep': 0}
+
+# 약물 투여 시점 기록용 리스트
+injection_times = []
+
+def inject_capsaicin(event):
+    drug_effect['capsaicin'] = True
+    effect_time['capsaicin'] = 100
+    injection_times.append(('캡사이신', len(time_data)))  # 현재 프레임 인덱스 기록
+
+def inject_stimulant(event):
+    drug_effect['stimulant'] = True
+    effect_time['stimulant'] = 100
+    injection_times.append(('각성제', len(time_data)))
+
+def inject_sedative(event):
+    drug_effect['sedative'] = True
+    effect_time['sedative'] = 100
+    injection_times.append(('진정제', len(time_data)))
+
+def inject_sleep(event):
+    drug_effect['sleep'] = True
+    effect_time['sleep'] = 100
+    injection_times.append(('수면제', len(time_data)))
+
+# 버튼 배치
+ax_capsaicin = plt.axes([0.25, 0.92, 0.1, 0.05])
+btn_capsaicin = Button(ax_capsaicin, '캡사이신')
+btn_capsaicin.on_clicked(inject_capsaicin)
+
+ax_stimulant = plt.axes([0.37, 0.92, 0.1, 0.05])
+btn_stimulant = Button(ax_stimulant, '각성제')
+btn_stimulant.on_clicked(inject_stimulant)
+
+ax_sedative = plt.axes([0.49, 0.92, 0.1, 0.05])
+btn_sedative = Button(ax_sedative, '진정제')
+btn_sedative.on_clicked(inject_sedative)
+
+ax_sleep = plt.axes([0.61, 0.92, 0.1, 0.05])
+btn_sleep = Button(ax_sleep, '수면제')
+btn_sleep.on_clicked(inject_sleep)
+
+# 그래프 데이터 버퍼
+temp_data = []
+hr_data = []
+drug_data = []
+time_data = []
+
+def animate(i):
+    t = time[i]
+    temp = simulate_temperature(t)
+    hr = simulate_heart_rate(t)
+    drug = simulate_drug_concentration(t)
+
+    # 약물 효과 적용 (현재 프레임에만)
+    if drug_effect['capsaicin'] and effect_time['capsaicin'] > 0:
+        temp += np.random.normal(0, 0.3)  # 체온 흔들림
+        hr += np.random.normal(0, 10)     # 심박수 흔들림
+        effect_time['capsaicin'] -= 1
+        if effect_time['capsaicin'] == 0:
+            drug_effect['capsaicin'] = False
+
+    if drug_effect['stimulant'] and effect_time['stimulant'] > 0:
+        hr += 30
+        temp += 0.5
+        effect_time['stimulant'] -= 1
+        if effect_time['stimulant'] == 0:
+            drug_effect['stimulant'] = False
+
+    if drug_effect['sedative'] and effect_time['sedative'] > 0:
+        hr -= 30
+        temp -= 0.5
+        effect_time['sedative'] -= 1
+        if effect_time['sedative'] == 0:
+            drug_effect['sedative'] = False
+
+    if drug_effect['sleep'] and effect_time['sleep'] > 0:
+        temp -= 1
+        hr -= 50
+        effect_time['sleep'] -= 1
+        if effect_time['sleep'] == 0:
+            drug_effect['sleep'] = False
+
+    # 데이터 버퍼에 추가
+    time_data.append(t)
+    temp_data.append(temp)
+    hr_data.append(hr)
+    drug_data.append(drug)
+
+    window = 100
+    temp_line.set_data(time_data[-window:], temp_data[-window:])
+    hr_line.set_data(time_data[-window:], hr_data[-window:])
+    drug_line.set_data(time_data[-window:], drug_data[-window:])
+
+    # x축 이동
+    for ax in axs:
+        ax.set_xlim(max(0, t-2), t+1)
+
+    # 빨간색 세로선(마커) 그리기
+    for ax in axs:
+        # 기존 빨간선 제거
+        [l.remove() for l in ax.lines if hasattr(l, '_is_marker')]
+
+        # 현재 윈도우 내에 있는 투여 시점만 표시
+        for label, idx in injection_times:
+            if len(time_data) - window <= idx < len(time_data):
+                x = time_data[idx]
+                marker_line = ax.axvline(x, color='red', linestyle='--', linewidth=2, alpha=0.7)
+                marker_line._is_marker = True  # 마커임을 표시
+
+    return temp_line, hr_line, drug_line
+
+# y축 범위 설정
+axs[0].set_ylim(36, 38)    # 체온
+axs[1].set_ylim(250, 350)  # 심박수
+axs[2].set_ylim(0, 110)    # 약물 농도
+
+ani = FuncAnimation(fig, animate, frames=len(time), interval=30, blit=True)
+plt.tight_layout()
+plt.show()
